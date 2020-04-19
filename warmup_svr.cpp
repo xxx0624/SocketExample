@@ -68,9 +68,11 @@ void process(int cli_sockFD){
                 aleadyTakenIn ++;
                 if(aleadyTakenIn == msgSize){
                     string msg = msgStream.str();
+                    cout << "Recv msg:" << msg << endl;
                     reverse(msg.begin(), msg.end()); 
                     int len = msg.length();
                     string reply = to_string(len) + DELIMITER + msg;
+                    cout << "Send msg back:" << reply << endl;
                     send_msg(cli_sockFD, reply);
                     conversationDone = true;
                     break;
