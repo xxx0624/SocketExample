@@ -64,8 +64,9 @@ int main(int argc, char* argv[]){
 
     cout << "connect to the server[" << argv[1] << "] successful" << endl;
     while(true){
+        cout << "Enter a message: ";
         string input;
-        cin >> input;
+        getline(cin, input);
         int len = input.length();
         if(len == 0){
             continue;
@@ -80,9 +81,9 @@ int main(int argc, char* argv[]){
             cerr << "fail to send [" << msg << "] to server, " << gai_strerror(error) << endl;
         } else {
             char buffer[BUFFERSIZE];
-            int bufferSize, realMsgSize = -1, aleadyTakenIn = 0, bufferIdx = 0;
-            stringstream realMsgStream, realMsgSizeStream;
-            bool endRecv = false;
+            int bufferSize, msgSize = -1, aleadyTakenIn = 0, bufferIdx = 0;
+            stringstream msgStream, msgSizeStream;
+            bool conversationDone = false;
             while(true){
                 bufferIdx = 0;
                 bufferSize = recv(sockFD, buffer, BUFFERSIZE, 0);
@@ -92,31 +93,31 @@ int main(int argc, char* argv[]){
                 }
 
                 while(bufferIdx < bufferSize){
-                    if(realMsgSize == -1){
+                    if(msgSize == -1){
                         if(buffer[bufferIdx] == DELIMITER) {
                             char* temp;
-                            realMsgSize = strtol(realMsgSizeStream.str().c_str(), &temp, 10);
+                            msgSize = strtol(msgSizeStream.str().c_str(), &temp, 10);
                             if(*temp){
                                 cerr << "wrong protocol format" << endl;
-                                endRecv = true;
+                                conversationDone = true;
                                 break;
                             }
                         } else {
-                            realMsgSizeStream << buffer[bufferIdx];
+                            msgSizeStream << buffer[bufferIdx];
                         }
                     } else {
-                        realMsgStream << buffer[bufferIdx];
+                        msgStream << buffer[bufferIdx];
                         aleadyTakenIn ++;
-                        if(aleadyTakenIn == realMsgSize){
-                            string msg = realMsgStream.str();
-                            cout << "Got:" << msg << endl;
-                            endRecv = true;
+                        if(aleadyTakenIn == msgSize){
+                            string msg = msgStream.str();
+                            cout << msg << endl;
+                            conversationDone = true;
                             break;
                         }
                     }
                     bufferIdx ++;
                 }
-                if(endRecv){
+                if(conversationDone){
                     break;
                 }
             }

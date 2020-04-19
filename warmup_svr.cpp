@@ -12,6 +12,7 @@
 #include <arpa/inet.h>
 #include <sys/wait.h>
 #include <signal.h>
+#include <bits/stdc++.h> 
 using namespace std;
 
 
@@ -20,55 +21,78 @@ const int BUFFERSIZE = 100;
 const char DELIMITER = '/'; // used to seperate the msg size and msg body
 
 
-void solve(int cli_sockFD){
+void send_msg(int sockFD, string msg){
+    int error;
+    if((error = send(sockFD, msg.c_str(), msg.length(), 0)) < 0){
+        cerr << "fail to send msg back" << gai_strerror(sockFD) << endl;
+    }
+}
+
+
+void process(int cli_sockFD){
     char buffer[BUFFERSIZE];
-    int bufferSize, realMsgSize = -1, aleadyTakenIn = 0, bufferIdx = 0;
-    stringstream realMsgStream, realMsgSizeStream;
+    int bufferSize, msgSize = -1, aleadyTakenIn = 0, bufferIdx = 0;
+    stringstream msgStream, msgSizeStream;
+    bool conversationDone = false;
     while(true){
         bufferIdx = 0;
         bufferSize = recv(cli_sockFD, buffer, BUFFERSIZE, 0);
-        if(bufferSize <= 0){
-            cerr << "couldn't recv msg" << endl;
+        if(bufferSize < 0){
+            cerr << "couldn't recv msg, " << gai_strerror(bufferSize) << endl;
+            string errorReply = "Couldn't receive msg. Please re-connect the server.";
+            send_msg(cli_sockFD, errorReply);
+            return ;
+        }
+
+        if(bufferSize == 0){
+            cout << "the stream socket peer has been shutdown" << endl;
             return ;
         }
 
         while(bufferIdx < bufferSize){
-            if(realMsgSize == -1){
+            if(msgSize == -1){
                 if(buffer[bufferIdx] == DELIMITER) {
                     char* temp;
-                    realMsgSize = strtol(realMsgSizeStream.str().c_str(), &temp, 10);
+                    msgSize = strtol(msgSizeStream.str().c_str(), &temp, 10);
                     if(*temp){
-                        cerr << "wrong protocol format" << endl;
+                        cerr << "wrong protocol format. shutdown the connection." << endl;
+                        string errorReply = "Wrong protocol format. Please re-connect the server.";
+                        send_msg(cli_sockFD, errorReply);
                         return ;
                     }
                 } else {
-                    realMsgSizeStream << buffer[bufferIdx];
+                    msgSizeStream << buffer[bufferIdx];
                 }
             } else {
-                realMsgStream << buffer[bufferIdx];
+                msgStream << buffer[bufferIdx];
                 aleadyTakenIn ++;
-                if(aleadyTakenIn == realMsgSize){
-                    string msg = realMsgStream.str();
+                if(aleadyTakenIn == msgSize){
+                    string msg = msgStream.str();
+                    reverse(msg.begin(), msg.end()); 
                     int len = msg.length();
-                    string newMsg = to_string(len) + DELIMITER + msg;
-                    cout << "Got: " << newMsg << endl;
-                    int error = send(cli_sockFD, newMsg.c_str(), newMsg.length(), 0);
-                    if(error < 0){
-                        cerr << "fail to send [" << newMsg << "]" << endl;
-                    }
-                    return ;
+                    string reply = to_string(len) + DELIMITER + msg;
+                    send_msg(cli_sockFD, reply);
+                    conversationDone = true;
+                    break;
                 }
             }
             bufferIdx ++;
+        }
+        if(conversationDone){
+            // start next round conversation
+            conversationDone = false;
+            msgSize = -1, aleadyTakenIn = 0;
+            msgSizeStream.str("");
+            msgStream.str("");
         }
     }
 }
 
 
 int main(int argc, char *argv[]){
-    int port, sockFD, error, yes = 1;
+    int port, sockFD, error;
     char* temp;
-    struct addrinfo hints, *addrs, *it;
+    struct sockaddr_in serv_addr;
 
     if(argc != 2){
         cerr << "Usage ./warmup_svr port_number" << endl;
@@ -81,43 +105,27 @@ int main(int argc, char *argv[]){
         return EXIT_FAILURE;
     }
 
-    memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_UNSPEC;
-	hints.ai_socktype = SOCK_STREAM;
-	hints.ai_flags = AI_PASSIVE;
-    if((error = getaddrinfo(NULL, to_string(port).c_str(), &hints, &addrs)) != 0){
-        cerr << "get addr info error, " << gai_strerror(error) << endl;
+    if((sockFD = socket(AF_INET, SOCK_STREAM, 0)) < 0){
+        cerr << "fail to create socket, " << gai_strerror(sockFD) << endl;
         return EXIT_FAILURE;
     }
 
-    for(it = addrs; it != NULL; it = it->ai_next){
-        if((sockFD = socket(it->ai_family, it->ai_socktype, it->ai_protocol)) == -1){
-            cout << "fail to create socket, " << gai_strerror(sockFD) << endl;
-            continue;
-        }
-
-        if(setsockopt(sockFD, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1){
-            cout << "set socketopt failed, " << gai_strerror(sockFD) << endl;
-            continue; 
-        }
-        if((error = bind(sockFD, it->ai_addr, it->ai_addrlen)) == -1){
-            close(sockFD);
-            cout << "fail to connect, " << gai_strerror(error) << endl;
-            continue;
-        }
-        //successfully
-        break;
-    }
-    freeaddrinfo(addrs);
-
-    if(it == NULL){
-        cout << "fail to connect to the server[" << argv[1] << "]" << endl;
+    memset(&serv_addr, 0, sizeof serv_addr);
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    serv_addr.sin_port = htons(port);
+    
+    error = bind(sockFD, (struct sockaddr *)&serv_addr, sizeof(serv_addr));
+    if(error < 0){
+        close(sockFD);
+        cout << "fail to bind, " << gai_strerror(error) << endl;
         return EXIT_FAILURE;
     }
 
     error = listen(sockFD, MAX_CONNS);
     if(error < 0){
-        cerr << "fail to listen the port: " << port << endl;
+        close(sockFD);
+        cerr << "fail to listen the port: " << port << gai_strerror(error) << endl;
         return EXIT_FAILURE;
     }
 
@@ -127,11 +135,10 @@ int main(int argc, char *argv[]){
         unsigned int sizelen = sizeof(cli_addr);
         int cli_sockFD = accept(sockFD, (struct sockaddr*)&cli_addr, &sizelen);
         if(cli_sockFD < 0){
-            cerr << "Fail to accept the client" << endl;
-            //TODO: send error msg back to client
+            cerr << "fail to accept the client, " << gai_strerror(error) << endl;
             continue;
         }
-        solve(cli_sockFD);
+        process(cli_sockFD);
         close(cli_sockFD);
     }
 }
