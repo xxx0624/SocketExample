@@ -30,7 +30,7 @@ int main(int argc, char* argv[]){
     }
 
     port = strtol(argv[2], &temp, 10);
-    if(temp == argv[1]){
+    if(*temp != '\0'){
         cerr << "port number isn't base of 10" << endl;
         return EXIT_FAILURE;
     }
@@ -97,7 +97,7 @@ int main(int argc, char* argv[]){
                         if(buffer[bufferIdx] == DELIMITER) {
                             char* temp;
                             msgSize = strtol(msgSizeStream.str().c_str(), &temp, 10);
-                            if(*temp){
+                            if(*temp != '\0'){
                                 cerr << "wrong protocol format" << endl;
                                 conversationDone = true;
                                 break;

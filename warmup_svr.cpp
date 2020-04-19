@@ -54,7 +54,7 @@ void process(int cli_sockFD){
                 if(buffer[bufferIdx] == DELIMITER) {
                     char* temp;
                     msgSize = strtol(msgSizeStream.str().c_str(), &temp, 10);
-                    if(*temp){
+                    if(*temp != '\0'){
                         cerr << "wrong protocol format. shutdown the connection." << endl;
                         string errorReply = "Wrong protocol format. Please re-connect the server.";
                         send_msg(cli_sockFD, errorReply);
@@ -100,7 +100,7 @@ int main(int argc, char *argv[]){
     }
 
     port = strtol(argv[1], &temp, 10);
-    if(temp == argv[1]){
+    if(*temp != '\0'){
         cerr << "port number isn't base of 10" << endl;
         return EXIT_FAILURE;
     }
