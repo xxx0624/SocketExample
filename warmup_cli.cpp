@@ -76,53 +76,64 @@ int main(int argc, char* argv[]){
             continue;
         }
         string msg = to_string(len) + DELIMITER + input;
-        error = send(sockFD, msg.c_str(), msg.length(), 0);
-        if(error < 0){
-            cerr << "fail to send [" << msg << "] to server, " << gai_strerror(error) << endl;
-        } else {
-            char buffer[BUFFERSIZE];
-            int bufferSize, msgSize = -1, aleadyTakenIn = 0, bufferIdx = 0;
-            stringstream msgStream, msgSizeStream;
-            bool conversationDone = false;
-            while(true){
-                bufferIdx = 0;
-                bufferSize = recv(sockFD, buffer, BUFFERSIZE, 0);
-                if(bufferSize <= 0){
-                    cerr << "couldn't recv msg from server" << endl;
-                    break ;
-                }
 
-                while(bufferIdx < bufferSize){
-                    if(msgSize == -1){
-                        if(buffer[bufferIdx] == DELIMITER) {
-                            char* temp;
-                            msgSize = strtol(msgSizeStream.str().c_str(), &temp, 10);
-                            if(*temp != '\0'){
-                                cerr << "wrong protocol format" << endl;
-                                conversationDone = true;
-                                break;
-                            }
-                        } else {
-                            msgSizeStream << buffer[bufferIdx];
-                        }
-                    } else {
-                        msgStream << buffer[bufferIdx];
-                        aleadyTakenIn ++;
-                        if(aleadyTakenIn == msgSize){
-                            string msg = msgStream.str();
-                            cout << msg << endl;
+        int nbytes_total = 0;
+        while(nbytes_total < (int)msg.length()){
+            int nbytes_last = send(sockFD, msg.c_str(), msg.length(), 0);
+            if(nbytes_total == -1){
+                cerr << "fail to send [" << msg << "] to server, " << gai_strerror(nbytes_total) << endl;
+                return EXIT_FAILURE;
+            }
+            nbytes_total += nbytes_last;
+        }
+
+        //error = send(sockFD, msg.c_str(), msg.length(), 0);
+        //if(error < 0){
+        //    cerr << "fail to send [" << msg << "] to server, " << gai_strerror(error) << endl;
+        //} else {
+        char buffer[BUFFERSIZE];
+        int bufferSize, msgSize = -1, aleadyTakenIn = 0, bufferIdx = 0;
+        stringstream msgStream, msgSizeStream;
+        bool conversationDone = false;
+        while(true){
+            bufferIdx = 0;
+            bufferSize = recv(sockFD, buffer, BUFFERSIZE, 0);
+            if(bufferSize <= 0){
+                cerr << "couldn't recv msg from server" << endl;
+                break ;
+            }
+
+            while(bufferIdx < bufferSize){
+                if(msgSize == -1){
+                    if(buffer[bufferIdx] == DELIMITER) {
+                        char* temp;
+                        msgSize = strtol(msgSizeStream.str().c_str(), &temp, 10);
+                        if(*temp != '\0'){
+                            cerr << "wrong protocol format" << endl;
                             conversationDone = true;
                             break;
                         }
+                    } else {
+                        msgSizeStream << buffer[bufferIdx];
                     }
-                    bufferIdx ++;
+                } else {
+                    msgStream << buffer[bufferIdx];
+                    aleadyTakenIn ++;
+                    if(aleadyTakenIn == msgSize){
+                        string msg = msgStream.str();
+                        cout << msg << endl;
+                        conversationDone = true;
+                        break;
+                    }
                 }
-                if(conversationDone){
-                    break;
-                }
+                bufferIdx ++;
+            }
+            if(conversationDone){
+                break;
             }
         }
     }
+    //}
     close(sockFD);
     freeaddrinfo(addrs);
     return 0;

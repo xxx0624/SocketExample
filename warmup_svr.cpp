@@ -22,9 +22,14 @@ const char DELIMITER = '/'; // used to seperate the msg size and msg body
 
 
 void send_msg(int sockFD, string msg){
-    int error;
-    if((error = send(sockFD, msg.c_str(), msg.length(), 0)) < 0){
-        cerr << "fail to send msg back" << gai_strerror(sockFD) << endl;
+    int nbytes_total = 0;
+    while(nbytes_total < (int)msg.length()){
+        int nbytes_last = send(sockFD, msg.c_str(), msg.length(), 0);
+        if(nbytes_total == -1){
+            cerr << "fail to send msg back" << gai_strerror(nbytes_total) << endl;
+            return;
+        }
+        nbytes_total += nbytes_last;
     }
 }
 
