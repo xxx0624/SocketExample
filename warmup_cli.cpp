@@ -18,6 +18,19 @@ const char DELIMITER = '/';
 const int SIZE = 1 << 17;
 const int BUFFERSIZE = 100;
 
+int send_msg(int sockFD, string msg){
+    int nbytes_total = 0;
+    const char* request = msg.c_str();
+    while(nbytes_total < (int)msg.length()){
+        int nbytes_last = send(sockFD, request + nbytes_total, msg.length() - nbytes_total, 0);
+        if(nbytes_last == -1){
+            cerr << "fail to send msg back" << gai_strerror(nbytes_last) << endl;
+            return nbytes_last;
+        }
+        nbytes_total += nbytes_last;
+    }
+    return 0;
+}
 
 int main(int argc, char* argv[]){
     int port, error, sockFD;
@@ -77,20 +90,11 @@ int main(int argc, char* argv[]){
         }
         string msg = to_string(len) + DELIMITER + input;
 
-        int nbytes_total = 0;
-        while(nbytes_total < (int)msg.length()){
-            int nbytes_last = send(sockFD, msg.c_str(), msg.length(), 0);
-            if(nbytes_total == -1){
-                cerr << "fail to send [" << msg << "] to server, " << gai_strerror(nbytes_total) << endl;
-                return EXIT_FAILURE;
-            }
-            nbytes_total += nbytes_last;
+        if(send_msg(sockFD, msg) == -1){
+            cerr << "fail to send [" << msg << "] to server" << endl;
+            return EXIT_FAILURE;
         }
 
-        //error = send(sockFD, msg.c_str(), msg.length(), 0);
-        //if(error < 0){
-        //    cerr << "fail to send [" << msg << "] to server, " << gai_strerror(error) << endl;
-        //} else {
         char buffer[BUFFERSIZE];
         int bufferSize, msgSize = -1, aleadyTakenIn = 0, bufferIdx = 0;
         stringstream msgStream, msgSizeStream;
@@ -133,7 +137,6 @@ int main(int argc, char* argv[]){
             }
         }
     }
-    //}
     close(sockFD);
     freeaddrinfo(addrs);
     return 0;

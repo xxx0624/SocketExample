@@ -21,16 +21,18 @@ const int BUFFERSIZE = 100;
 const char DELIMITER = '/'; // used to seperate the msg size and msg body
 
 
-void send_msg(int sockFD, string msg){
+int send_msg(int sockFD, string msg){
     int nbytes_total = 0;
+    const char* request = msg.c_str();
     while(nbytes_total < (int)msg.length()){
-        int nbytes_last = send(sockFD, msg.c_str(), msg.length(), 0);
-        if(nbytes_total == -1){
-            cerr << "fail to send msg back" << gai_strerror(nbytes_total) << endl;
-            return;
+        int nbytes_last = send(sockFD, request + nbytes_total, msg.length() - nbytes_total, 0);
+        if(nbytes_last == -1){
+            cerr << "fail to send msg back" << gai_strerror(nbytes_last) << endl;
+            return nbytes_last;
         }
         nbytes_total += nbytes_last;
     }
+    return 0;
 }
 
 
